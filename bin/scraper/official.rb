@@ -1,9 +1,7 @@
 #!/bin/env ruby
 # frozen_string_literal: true
 
-require 'csv'
-require 'pry'
-require 'scraped'
+require 'every_politician_scraper/scraper_data'
 
 require 'open-uri/cached'
 
@@ -11,11 +9,11 @@ class Legislature
   # details for an individual member
   class Member < Scraped::HTML
     field :id do
-      url.split('=').last rescue binding.pry
+      url.split('=').last
     end
 
-    PREFIXES = %w[Hon Mr Mrs Ms Dr]
-    SUFFIXES = %w[MP OAM AM QC]
+    PREFIXES = %w[Hon Mr Mrs Ms Dr].freeze
+    SUFFIXES = %w[MP OAM AM QC].freeze
 
     field :name do
       SUFFIXES.reduce(unprefixed_name) { |current, suffix| current.sub(/#{suffix},?\s?$/, '').tidy }
@@ -42,7 +40,6 @@ class Legislature
     def unprefixed_name
       PREFIXES.reduce(full_name) { |current, prefix| current.sub("#{prefix} ", '') }
     end
-
   end
 
   # The page listing all the members
@@ -55,16 +52,12 @@ class Legislature
   end
 end
 
+# TODO: have ScraperData handle multiple URLs
 urls = [
   'https://www.aph.gov.au/Senators_and_Members/Parliamentarian_Search_Results?q=&mem=1&par=-1&gen=0&ps=96&st=1',
   'https://www.aph.gov.au/Senators_and_Members/Parliamentarian_Search_Results?page=2&q=&mem=1&par=-1&gen=0&ps=96&st=1'
 ]
-data = urls.flat_map do |url|
-  Legislature::Members.new(response: Scraped::Request.new(url: url).response).members
-end
 
-header = data.first.keys.to_csv
-rows = data.map { |row| row.values.to_csv }
-abort 'No results' if rows.count.zero?
-
-puts header + rows.join
+# We need to remove the header row from the second CSV
+csvs = urls.map { |url| EveryPoliticianScraper::ScraperData.new(url).csv.lines }
+puts (csvs[0] + csvs[1].drop(1)).join
